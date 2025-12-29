@@ -1,0 +1,555 @@
+{
+  "name": "YouTube Content Research and AI-Powered Video Idea Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e6209f27-5d21-4ad3-8589-335641de5037",
+      "name": "When Chat Message Received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        448,
+        192
+      ],
+      "webhookId": "9006d7f3-d2f4-4a5c-8597-cfb7cd9599cc"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "apifyApiToken",
+              "value": "<__PLACEHOLDER_VALUE__Your Apify API Token__>",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "openaiApiKey",
+              "value": "<__PLACEHOLDER_VALUE__Your OpenAI API Key__>",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "34ec24a0-816e-49eb-a5e1-e8ecc4ed2f55",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        464,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "runConfigs",
+              "value": "=[{\"filter\": \"year\", \"results\": 30, \"channelUrl\": \"={{ $json.chatInput }}\"}, {\"filter\": \"month\", \"results\": 15, \"channelUrl\": \"={{ $json.chatInput }}\"}, {\"filter\": \"week\", \"results\": 5, \"channelUrl\": \"={{ $json.chatInput }}\"}]",
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "42538893-f6e2-4a90-86ba-7e1f98e26d02",
+      "name": "runConfigs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "runConfigs",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "id": "c135844e-7fad-4c21-aa45-e766a0cef242",
+      "name": "Split Out",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        800,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/streamers~youtube-scraper/runs",
+        "authentication": "genericCredentialType",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Workflow Configuration').first().json.apifyApiToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"dateFilter\": \"{{ $json.runConfigs.filter }}\", \"maxResults\": {{ $json.runConfigs.results }}, \"channelUrls\": [\"{{ $json.runConfigs.channelUrl }}\"], \"sortingOrder\": \"views\", \"downloadSubtitles\": false}",
+        "options": {}
+      },
+      "id": "c033dce2-25be-465a-bba5-fab479b40a87",
+      "name": "Apify HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        720,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 90
+      },
+      "id": "bee5b1d0-57ea-46a2-a7b8-739fc94d0a83",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        768,
+        528
+      ],
+      "webhookId": "5410e13b-56eb-4a1c-add8-2de579217ef5"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/={{ $json.data.defaultDatasetId }}/items?format=json&clean=true",
+        "authentication": "genericCredentialType",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Workflow Configuration').first().json.apifyApiToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "37b289af-d628-4eda-81d1-9d8e771045d0",
+      "name": "Apify HTTP Get Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1008,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "={{ $json.items }}",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "id": "4521ccbb-1399-4aba-864f-68e554824507",
+      "name": "Split Out Videos",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Please analyze the following data based on the instructions in the System Message.\n\nSearch Query for Context: \"{{ $json.input_query }}\"\n\nVideo Data for Analysis:\n{{ JSON.stringify($json.videoDataForLLM, null, 2) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are \"Strategos AI\", an expert YouTube Content Strategist and Behavioral Science enthusiast. Your goal is to generate highly clickable, engaging, and actionable YouTube video ideas that leverage psychological triggers for maximum impact.\n\nYou will be provided with an input_query and an array of videoDataForLLM objects. Each video object contains:\n- title: string (Original video title)\n- thumbnail_summary: string (Concise analysis of the competitor's thumbnail: visuals, text, mood)\n- views: number\n- subscribers: number (Channel's subscriber count)\n- upload_date: string (ISO 8601 format, e.g., \"2025-01-14T18:14:44.000Z\")\n\nThe current date for your analysis is {{ $now.toISO() }}.\n\nGOAL:\n\nDeep Trend & Psychological Analysis:\nFor each video in videoDataForLLM, determine its recency based on its upload_date relative to the current date.\nCategorize videos: Evergreen/Yearly (older than ~3-4 months), Current/Monthly (last ~1-3 months), Fresh/Weekly (last ~1-4 weeks).\nAnalyze views vs subscribers ratio and identify psychological triggers from titles, concepts, and thumbnail summaries.\n\nStrategic Idea Generation:\nCreate exactly 30 new, original video ideas highly relevant to the input_query.\nEach idea must be unique, actionable, and strategically designed for lead generation and community growth.\n\nTASK (RESPONSE FORMAT - STRICT):\nOutput ONLY a valid JSON array. This array MUST contain exactly 30 video idea objects.\nEach object in the array must directly conform to the following structure:\n{\n  \"new_video_title\": \"string\",\n  \"concept_and_angle\": \"string\",\n  \"suggested_thumbnail_description\": \"string\",\n  \"key_talking_points_outline\": \"string\",\n  \"trend_justification\": \"string\"\n}\n\nIMPORTANT:\nYour entire response MUST begin with [ and end with ].\nIt must be a single JSON array where each element is an object with the 5 specified fields.\nDO NOT include Markdown code fences (```json, ```), commentary, explanations, or any other text outside this JSON array.\nThe output MUST be a single, valid JSON array parsable by a machine.\nEnsure all internal quotation marks within strings are correctly escaped (e.g., \"This is an \\\"example\\\" string.\").\n\nBegin now."
+        }
+      },
+      "id": "53faf74f-be26-4d21-8f42-cf87bdccc970",
+      "name": "Video Ideas Generator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2032,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "a1321d5c-0ada-4d9b-b411-0638fa6d1d4b",
+      "name": "OpenAI Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2032,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"videoIdeas\": [\n\t\t{\n\t\t\t\"new_video_title\": \"string\",\n\t\t\t\"concept_and_angle\": \"string\",\n\t\t\t\"suggested_thumbnail_description\": \"string\",\n\t\t\t\"key_talking_points_outline\": \"string\",\n\t\t\t\"trend_justification\": \"string\"\n\t\t}\n\t]\n}"
+      },
+      "id": "4e40542b-8955-401a-a009-5b432c974fe2",
+      "name": "Video Ideas Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2176,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "videoIdeas",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "id": "f5e29764-5919-43e7-81d7-51404a9a60b0",
+      "name": "Split Out Video Ideas",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Your Airtable Base ID__>"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Your Airtable Table Name__>"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "title": "={{ $json.videoIdeas.new_video_title }}",
+            "concept": "={{ $json.videoIdeas.concept_and_angle }}",
+            "thumbnail": "={{ $json.videoIdeas.suggested_thumbnail_description }}",
+            "talking_points": "={{ $json.videoIdeas.key_talking_points_outline }}",
+            "justification": "={{ $json.videoIdeas.trend_justification }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "0eed2e2a-317a-4351-9ba6-5df0fc7dafa0",
+      "name": "Save to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2800,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Workflow Configuration').first().json.openaiApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\": \"gpt-4o-mini\", \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"Analyze the following YouTube thumbnail. Summarize the key elements that make it clickable and clearly communicate the video's topic. Your summary should be one sentence max and include: any visible text, main visuals, and overall tone. Respond in plain text onlyâ€”no JSON, no intro, no bullet points.\"}, {\"type\": \"image_url\", \"image_url\": {\"url\": \"{{ $json.thumbnailUrl }}\"}}]}], \"max_tokens\": 300}",
+        "options": {}
+      },
+      "id": "21f5ab58-60b6-4901-9578-21ecb1498d4d",
+      "name": "Analyze Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "e340c41a-829e-4102-85be-3da2f9342db9",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst inputQuery = items[0].json.chatInput || items[0].json.runConfigs?.channelUrl || \"missing\";\n\nconst simplified = items.map(item => ({\n  title: item.json.title,\n  thumbnail_summary: item.json.choices?.[0]?.message?.content?.trim() || \"Thumbnail summary missing.\",\n  views: item.json.viewCount || 0,\n  subscribers: item.json.numberOfSubscribers || 0,\n  upload_date: item.json.date || \"unknown\"\n}));\n\nreturn [\n  {\n    json: {\n      input_query: inputQuery,\n      videoDataForLLM: simplified\n    }\n  }\n];"
+      },
+      "id": "5810f57f-a742-4867-87c6-a72158aea1b8",
+      "name": "Video Data Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Your Airtable Base ID for Scraped Videos__>"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Your Scraped Videos Table Name__>"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "post_title": "={{ $json.title }}",
+            "views": "={{ $json.viewCount }}",
+            "likes": "={{ $json.likes }}",
+            "username": "={{ $json.channelName }}",
+            "subscribers": "={{ $json.numberOfSubscribers }}",
+            "thumbnail_description": "={{ $json.choices?.[0]?.message?.content }}",
+            "thumbnail_url": "={{ $json.thumbnailUrl }}",
+            "post_url": "={{ $json.url }}",
+            "posted_at": "={{ $json.date }}",
+            "scraped_at": "={{ $now.toFormat('yyyy-MM-dd') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "f0584c9d-8a79-4285-a3d2-01c29feab228",
+      "name": "Save Video Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1632,
+        176
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Chat Message Received": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "runConfigs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "runConfigs": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Apify HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Apify HTTP Get Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify HTTP Get Data": {
+      "main": [
+        [
+          {
+            "node": "Split Out Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Video Ideas Generator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Ideas Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Video Ideas Generator Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Ideas Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Out Video Ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Video Ideas": {
+      "main": [
+        [
+          {
+            "node": "Save to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Videos": {
+      "main": [
+        [
+          {
+            "node": "Analyze Image",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Image": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Video Data Aggregator",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Video Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Data Aggregator": {
+      "main": [
+        [
+          {
+            "node": "Video Ideas Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9e5a311a-af7d-4864-b184-928f532da2f4",
+  "meta": {
+    "instanceId": "c802688fbdf3b5bab8d1ff036f0f322044c8fcd252d346e3c5f0a6cd2917534e"
+  },
+  "id": "Gw8OrNxa7ownhKmj",
+  "tags": []
+}
